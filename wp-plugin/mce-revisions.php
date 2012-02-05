@@ -18,6 +18,7 @@ Released under the GPL v.2
 */
 
 
+ 
 // Add plugins to TinyMCE
 add_filter('mce_external_plugins', 'vrev_load_plugins');
 function vrev_load_plugins($plugins) {
