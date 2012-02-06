@@ -11,14 +11,14 @@ Includes the Ice plugin for TinyMCE released under the GPL version 2 by: The New
 
 Released under the GPL v.2
 
-    This program is free software; you can redistribute it and/or modify
+	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License, version 2, as
 	published by the Free Software Foundation.
 	
 	This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 */
 
 
@@ -57,9 +57,13 @@ function vrev_add_mce_buttons_2($buttons) {
 
 // can add or change the TinyMCE init here
 // $settings is a PHP associative array containing all init strings: $settings['mce_setting_name'] = 'setting string';
-add_filter('tiny_mce_before_init', 'vrev_mce_settings');
-function vrev_mce_settings($settings) {
+add_filter('tiny_mce_before_init', 'vrev_mce_settings', 10, 2);
+function vrev_mce_settings($settings, $editor_id) {
 	global $current_user, $post;
+
+	if ( 'content' != $editor_id )
+		return $settings;
+
 	$new_post = $post->post_status == 'auto-draft';
 
 	/*
@@ -69,7 +73,10 @@ function vrev_mce_settings($settings) {
 		'insertTag' => 'span',
 		'deleteClass' => 'del',
 		'insertClass' => 'ins',
-		'attrPrefix' => 'data-',
+		'changeIdAttribute' => 'data-cid',
+		'userIdAttribute' => 'data-userid',
+		'userNameAttribute' => 'data-username',
+		'timeAttribute' => 'data-time',
 		'preserveOnPaste' => 'p',
 		'isTracking' => true,
 		'contentEditable' => true,
@@ -92,20 +99,15 @@ function vrev_mce_settings($settings) {
 	return $settings;
 }
 
-// append textarea TODO: move to JS?
-add_action('dbx_post_sidebar', 'vrev_post_meta', 50);
-function vrev_post_meta() {
-	global $post_ID;
+// show warning when no JS
+add_action('submitpage_box', 'vrev_show_warning');
+add_action('submitpost_box', 'vrev_show_warning');
+function vrev_show_warning() {
+	global $post;
 
-	if ( !current_user_can('edit_post', $post_ID) )
-		return;
-
-	$meta = get_post_meta($post_ID, '_ice_revisions_content');
-	$meta = (string) array_pop($meta);
-	$meta = wp_htmledit_pre($meta);
-	?>
-	<div class="hidden"><textarea name="ice-revisions-content" id="ice-revisions-content"><?php echo $meta; ?></textarea></div>
-	<?php
+	if ( strpos($post->post_content, 'data-username=') ) { // strpos cannot be 0 (zero)
+		echo '<noscript>' . __('This post contains embedded revision tracking information. To publish or update it without using JavaScript and the Visual Editor, please remove all revision tracking spans. Note: that will permanently remove the current revision tracking information from the post.', 'mce-revisions') . '</noscript>';
+	}
 
 	wp_enqueue_script('mce-revisions', plugin_dir_url(__file__) . 'js/mce-revisions.js', array('jquery'), '1.0', true );
 }
@@ -113,7 +115,7 @@ function vrev_post_meta() {
 // save the content with revisions as meta
 add_filter('wp_insert_post_data', 'vrev_save_revisions_content', 10, 2);
 function vrev_save_revisions_content($data, $postarr) {
-	if ( isset($postarr['ice-revisions-content']) ) {
+	if ( !empty($postarr['ice-revisions-content']) ) {
 		$post_id = (int) $postarr['post_ID'];
 		if ( !current_user_can('edit_post', $post_id) )
 			return $data;
@@ -136,7 +138,7 @@ function vrev_load_revisions_content($content) {
 	global $post, $post_ID, $pagenow;
 	static $runonce = false;
 
-	if ( !isset($post) || !isset($post_ID) || !current_user_can('edit_post', $post_ID) || $runonce || $pagenow != 'post.php' )
+	if ( !isset($post) || !isset($post_ID) || !current_user_can('edit_post', $post_ID) || $runonce || $pagenow != 'post.php' || !user_can_richedit() )
 		return $content;
 
 	$runonce = true;
@@ -162,6 +164,9 @@ function vrev_hide_wp_revisions($post_type, $post) {
 // show "track changes" button in fullscreen mode
 add_filter('wp_fullscreen_buttons', 'vrev_fullscreen_button');
 function vrev_fullscreen_button($buttons) {
+	if ( !user_can_richedit() )
+		return $buttons;
+
 	?>
 	<style type="text/css" scoped="scoped">
 	#wp_fs_ice_toggleshowchanges span {background: url("<?php echo plugin_dir_url(__file__) . 'ice/img/ice-showchanges.png'; ?>");

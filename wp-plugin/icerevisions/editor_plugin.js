@@ -1,28 +1,29 @@
 (function() {
 	tinymce.create('tinymce.plugins.IceRevisionsPlugin', {
 
-		publish_button_id: 'publish',
-		save_button_id: 'save-post',
-		
-		/**
-		 * Plugin initialization - register buttons, commands, and take care of setup.
-		 */
 		init: function(ed, url) {
-			var self = this, ice = ed.getParam('ice', {});
+			var self = this;
 
-			// use another textarea to submit the unmodified content then remove all tracking and comment tags from the content
+			// use another textarea to submit the unmodified content then remove all tracking tags from the content
 			ed.onInit.add(function(ed) {
-				ed.dom.bind(
-					self.publish_button_id,
+				var DOM = tinymce.DOM, buttons, div, form = DOM.get('post'), ice_settings = ed.getParam('ice', {});
+
+				if ( !form )
+					return;
+
+				div = DOM.create( 'div', {'class':'hidden'}, '<textarea name="ice-revisions-content" id="ice-revisions-content"></textarea>' );
+				form.appendChild(div);
+
+				buttons = DOM.select('#wp-fullscreen-save input[type="button"], #publish');
+
+				DOM.bind(
+					buttons,
 					'mousedown',
 					function() {
-						var DOM = tinymce.DOM, content;
+						var content;
 
-						if ( ed.id != 'content' || !ice.isTracking )
+						if ( ( ed.id != 'content' && ed.id != 'wp_mce_fullscreen' ) || !ice_settings.isTracking || ed.isHidden() )
 							return;
-
-						if ( ed.isHidden() )
-							ed.load();
 
 						content = ed.getContent();
 						if ( ed.getParam('wpautop', true) && typeof(switchEditors) != 'undefined' )
@@ -32,27 +33,6 @@
 
 						// remove change tracking spans
 						ed.execCommand('iceacceptall');
-					}
-				);
-
-				ed.dom.bind(
-					self.save_button_id,
-					'mousedown',
-					function() {
-						var DOM = tinymce.DOM, content;
-
-						if ( ed.id != 'content' || !ice.isTracking )
-							return;
-
-						if ( ed.isHidden() ) {
-							content = DOM.get('content').value;
-						} else {
-							content = ed.getContent();
-							if ( ed.getParam('wpautop', true) && typeof(switchEditors) != 'undefined' )
-								content = switchEditors.pre_wpautop( content );
-						}
-
-						DOM.get('ice-revisions-content').value = content;
 					}
 				);
 			});
